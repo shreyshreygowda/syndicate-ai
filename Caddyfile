@@ -1,0 +1,11 @@
+# Replace with your domain or use :443 for IP-based access
+# Example: ai.syndicate708.internal
+:443 {
+    reverse_proxy syndicate-ai:3000
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+    }
+}

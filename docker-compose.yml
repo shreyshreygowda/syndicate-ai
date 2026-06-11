@@ -1,0 +1,33 @@
+services:
+  syndicate-ai:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - syndicate-data:/app/data
+      - syndicate-uploads:/app/uploads
+    restart: unless-stopped
+
+  # Optional: Caddy reverse proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - syndicate-ai
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  syndicate-data:
+  syndicate-uploads:
+  caddy-data:
+  caddy-config:

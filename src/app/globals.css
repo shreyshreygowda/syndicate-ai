@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --syndicate-blue: #1A47E5;
+  --syndicate-blue-dark: #324B90;
+  --syndicate-charcoal: #333842;
+  --syndicate-off-white: #F7F7F7;
+  --syndicate-light-gray: #E5E7EB;
+}
+
+body {
+  background-color: var(--syndicate-off-white);
+  color: #000;
+}
+
+/* Grid texture background */
+.grid-bg {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 199px,
+    rgba(0, 0, 0, 0.03) 199px,
+    rgba(0, 0, 0, 0.03) 200px
+  );
+}
+
+/* Markdown prose styles */
+.prose-syndicate {
+  @apply text-sm leading-relaxed;
+}
+
+.prose-syndicate h1,
+.prose-syndicate h2,
+.prose-syndicate h3 {
+  @apply font-bold mt-4 mb-2;
+}
+
+.prose-syndicate h1 { @apply text-xl; }
+.prose-syndicate h2 { @apply text-lg; }
+.prose-syndicate h3 { @apply text-base; }
+
+.prose-syndicate p {
+  @apply mb-3;
+}
+
+.prose-syndicate ul,
+.prose-syndicate ol {
+  @apply mb-3 pl-5;
+}
+
+.prose-syndicate ul { @apply list-disc; }
+.prose-syndicate ol { @apply list-decimal; }
+
+.prose-syndicate li {
+  @apply mb-1;
+}
+
+.prose-syndicate code {
+  @apply bg-syndicate-light-gray px-1.5 py-0.5 rounded text-xs font-mono;
+}
+
+.prose-syndicate pre {
+  @apply bg-syndicate-charcoal text-white p-4 rounded-lg overflow-x-auto mb-3 text-xs;
+}
+
+.prose-syndicate pre code {
+  @apply bg-transparent p-0 text-white;
+}
+
+.prose-syndicate blockquote {
+  @apply border-l-4 border-syndicate-blue pl-4 italic text-syndicate-slate mb-3;
+}
+
+.prose-syndicate a {
+  @apply text-syndicate-blue underline;
+}
+
+.prose-syndicate table {
+  @apply w-full border-collapse mb-3 text-xs;
+}
+
+.prose-syndicate th,
+.prose-syndicate td {
+  @apply border border-syndicate-light-gray px-3 py-1.5 text-left;
+}
+
+.prose-syndicate th {
+  @apply bg-syndicate-light-gray font-semibold;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
