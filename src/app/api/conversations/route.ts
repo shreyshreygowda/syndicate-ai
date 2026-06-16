@@ -2,17 +2,21 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { db, initDatabase } from "@/lib/db";
 import { conversations } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { getDefaultModel } from "@/lib/providers";
 
 initDatabase();
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const url = new URL(request.url);
+  const includeComparison =
+    url.searchParams.get("includeComparison") === "true";
 
   const convos = await db
     .select()
@@ -20,9 +24,7 @@ export async function GET() {
     .where(eq(conversations.userId, session.user.id))
     .orderBy(desc(conversations.updatedAt));
 
-  // Hide comparison sessions from saved chat list
-  const saved = convos.filter((c) => !c.isComparison);
-
+  const saved = includeComparison ? convos : convos.filter((c) => !c.isComparison);
   return NextResponse.json(saved);
 }
 
@@ -35,6 +37,24 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const defaults = getDefaultModel();
   const now = new Date();
+
+  if (body.isComparison && body.singleton) {
+    const existingComparison = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, session.user.id),
+          eq(conversations.isComparison, true)
+        )
+      )
+      .orderBy(desc(conversations.updatedAt))
+      .get();
+
+    if (existingComparison) {
+      return NextResponse.json(existingComparison);
+    }
+  }
 
   const convo = {
     id: uuid(),

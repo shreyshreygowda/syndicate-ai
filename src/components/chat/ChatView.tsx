@@ -8,7 +8,7 @@ import { ChatInput } from "./ChatInput";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { Button } from "@/components/ui/Button";
-import { Settings } from "lucide-react";
+import { Settings, Pencil, Check, X } from "lucide-react";
 import type { ModelInfo } from "@/types";
 
 interface Message {
@@ -27,24 +27,31 @@ interface Document {
 
 interface ChatViewProps {
   conversationId: string;
+  initialTitle?: string;
   initialMessages: Message[];
   initialDocuments: Document[];
   initialProvider: string;
   initialModel: string;
+  initialComparisonModels?: { provider: string; model: string }[];
   models: ModelInfo[];
   compareMode?: boolean;
 }
 
 export function ChatView({
   conversationId,
+  initialTitle = "New Chat",
   initialMessages,
   initialDocuments,
   initialProvider,
   initialModel,
+  initialComparisonModels = [],
   models: initialModels,
   compareMode = false,
 }: ChatViewProps) {
   const router = useRouter();
+  const [title, setTitle] = useState(initialTitle);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(initialTitle);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [models, setModels] = useState<ModelInfo[]>(initialModels);
@@ -52,7 +59,7 @@ export function ChatView({
   const [model, setModel] = useState(initialModel);
   const [compareModels, setCompareModels] = useState<
     { provider: string; model: string }[]
-  >([]);
+  >(initialComparisonModels);
   const [streaming, setStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState<
     Record<string, string>
@@ -215,12 +222,82 @@ export function ChatView({
     });
   }
 
+  async function handleCompareSelect(
+    selected: { provider: string; model: string }[]
+  ) {
+    setCompareModels(selected);
+    await fetch(`/api/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comparisonModels: selected }),
+    });
+  }
+
+  async function saveTitle() {
+    const trimmed = titleDraft.trim() || "New Chat";
+    setTitle(trimmed);
+    setEditingTitle(false);
+    await fetch(`/api/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    });
+    router.refresh();
+  }
+
+  function cancelTitleEdit() {
+    setTitleDraft(title);
+    setEditingTitle(false);
+  }
+
   const showCompare = compareMode && compareModels.length > 0;
   const noModels = models.length === 0;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-syndicate-light-gray bg-white">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-syndicate-light-gray bg-white gap-4">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {editingTitle ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTitle();
+                  if (e.key === "Escape") cancelTitleEdit();
+                }}
+                autoFocus
+                className="text-sm font-semibold border border-syndicate-blue rounded px-2 py-1 min-w-0 flex-1 focus:outline-none"
+              />
+              <button
+                onClick={saveTitle}
+                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                title="Save"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+              <button
+                onClick={cancelTitleEdit}
+                className="p-1 text-syndicate-muted hover:bg-syndicate-off-white rounded"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setTitleDraft(title);
+                setEditingTitle(true);
+              }}
+              className="flex items-center gap-1.5 min-w-0 group"
+              title="Rename chat"
+            >
+              <span className="text-sm font-semibold truncate">{title}</span>
+              <Pencil className="w-3.5 h-3.5 text-syndicate-muted opacity-0 group-hover:opacity-100 shrink-0" />
+            </button>
+          )}
+        </div>
         <ModelSwitcher
           models={models}
           selectedProvider={provider}
@@ -228,7 +305,7 @@ export function ChatView({
           onSelect={handleModelChange}
           compareMode={compareMode}
           selectedModels={compareModels}
-          onCompareSelect={setCompareModels}
+          onCompareSelect={handleCompareSelect}
         />
       </div>
 
@@ -250,7 +327,7 @@ export function ChatView({
         {messages.length === 0 && !streaming && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <h2 className="text-2xl font-bold text-black mb-2">
-              {compareMode ? "Compare Models" : "New Conversation"}
+              {compareMode ? title : title === "New Chat" ? "New Conversation" : title}
             </h2>
             <p className="text-syndicate-muted text-sm max-w-md">
               {noModels

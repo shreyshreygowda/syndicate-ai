@@ -72,16 +72,25 @@ export async function PATCH(
   }
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (body.title !== undefined) updates.title = body.title;
+  if (body.title !== undefined) updates.title = body.title.trim() || "New Chat";
   if (body.model !== undefined) updates.model = body.model;
   if (body.provider !== undefined) updates.provider = body.provider;
+  if (body.comparisonModels !== undefined) {
+    updates.comparisonModels = JSON.stringify(body.comparisonModels);
+  }
 
   await db
     .update(conversations)
     .set(updates)
     .where(eq(conversations.id, id));
 
-  return NextResponse.json({ success: true });
+  const updated = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, id))
+    .get();
+
+  return NextResponse.json({ success: true, conversation: updated });
 }
 
 export async function DELETE(

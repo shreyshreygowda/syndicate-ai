@@ -18,6 +18,7 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const isChatHome = pathname === "/chat";
+  const isCompareRoute = pathname.startsWith("/compare");
 
   const fetchConversations = useCallback(async () => {
     const res = await fetch("/api/conversations");
@@ -32,15 +33,27 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
   }, [fetchConversations, pathname]);
 
   const handleNewChat = useCallback(async () => {
+    const createComparison = isCompareRoute;
     const res = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify(
+        createComparison
+          ? { title: "Model Comparison", isComparison: true, singleton: true }
+          : {}
+      ),
     });
     const convo = await res.json();
     await fetchConversations();
+
+    if (createComparison) {
+      sessionStorage.setItem("s708_compare_convo_id", convo.id);
+      router.push("/compare");
+      return;
+    }
+
     router.push(`/chat/${convo.id}`);
-  }, [fetchConversations, router]);
+  }, [fetchConversations, isCompareRoute, router]);
 
   async function handleDeleteChat(id: string) {
     if (!confirm("Delete this conversation? This cannot be undone.")) return;
@@ -53,8 +66,11 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
 
     await fetchConversations();
 
-    // If we deleted the chat we're viewing, go home — do NOT auto-create a new one
-    if (pathname === `/chat/${id}`) {
+    // If we deleted the chat we're viewing, go home
+    if (pathname === `/chat/${id}` || pathname === "/compare") {
+      if (pathname === "/compare") {
+        sessionStorage.removeItem("s708_compare_convo_id");
+      }
       router.push("/chat");
     }
   }
@@ -68,6 +84,19 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
     navigator.clipboard.writeText(data.shareUrl);
   }
 
+  async function handleRenameChat(id: string, title: string) {
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) {
+      alert("Failed to rename conversation.");
+      return;
+    }
+    await fetchConversations();
+  }
+
   return (
     <div className="flex h-screen">
       <Sidebar
@@ -75,6 +104,7 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         onShareChat={handleShareChat}
+        onRenameChat={handleRenameChat}
         userName={userName}
         authDisabled={authDisabled}
       />

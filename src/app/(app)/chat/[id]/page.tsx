@@ -51,14 +51,21 @@ export default async function ChatPage({
     provider: m.provider,
   }));
 
+  const comparisonModels = convo.comparisonModels
+    ? (JSON.parse(convo.comparisonModels) as { provider: string; model: string }[])
+    : [];
+
   return (
     <ChatView
       conversationId={id}
+      initialTitle={convo.title}
       initialMessages={typedMessages}
       initialDocuments={docs}
       initialProvider={convo.provider}
       initialModel={convo.model}
+      initialComparisonModels={comparisonModels}
       models={models}
+      compareMode={convo.isComparison ?? false}
     />
   );
 }

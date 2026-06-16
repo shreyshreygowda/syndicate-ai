@@ -12,6 +12,9 @@ import {
   Share2,
   LogOut,
   Shield,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { cn, formatDate, truncate } from "@/lib/utils";
@@ -22,6 +25,7 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
   onShareChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
   userName: string;
   authDisabled?: boolean;
 }
@@ -31,11 +35,14 @@ export function Sidebar({
   onNewChat,
   onDeleteChat,
   onShareChat,
+  onRenameChat,
   userName,
   authDisabled,
 }: SidebarProps) {
   const pathname = usePathname();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const navItems = [
     { href: "/chat", label: "Chat", icon: MessageSquare },
@@ -43,6 +50,31 @@ export function Sidebar({
     { href: "/prompts", label: "Prompts", icon: BookOpen },
     { href: "/settings", label: "Setup", icon: Shield },
   ];
+
+  function startRename(convo: Conversation) {
+    setRenamingId(convo.id);
+    setRenameDraft(convo.title);
+  }
+
+  async function saveRename(id: string) {
+    const trimmed = renameDraft.trim() || "New Chat";
+    await onRenameChat(id, trimmed);
+    setRenamingId(null);
+    setRenameDraft("");
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameDraft("");
+  }
+
+  function getChatHref(convo: Conversation) {
+    return convo.isComparison ? `/chat/${convo.id}` : `/chat/${convo.id}`;
+  }
+
+  function isChatActive(convo: Conversation) {
+    return pathname === `/chat/${convo.id}`;
+  }
 
   return (
     <aside className="w-72 bg-white border-r border-syndicate-light-gray flex flex-col h-full">
@@ -96,7 +128,9 @@ export function Sidebar({
         ) : (
           <div className="space-y-0.5">
             {conversations.map((convo) => {
-              const active = pathname === `/chat/${convo.id}`;
+              const active = isChatActive(convo);
+              const isRenaming = renamingId === convo.id;
+
               return (
                 <div
                   key={convo.id}
@@ -104,24 +138,73 @@ export function Sidebar({
                   onMouseEnter={() => setHoveredId(convo.id)}
                   onMouseLeave={() => setHoveredId(null)}
                 >
-                  <Link
-                    href={`/chat/${convo.id}`}
-                    className={cn(
-                      "block px-3 py-2.5 rounded-md text-sm transition-colors",
-                      active
-                        ? "bg-syndicate-blue/10 text-syndicate-blue font-medium"
-                        : "text-syndicate-slate hover:bg-syndicate-off-white"
-                    )}
-                  >
-                    <div className="font-medium truncate pr-12">
-                      {truncate(convo.title, 30)}
+                  {isRenaming ? (
+                    <div className="px-2 py-2 rounded-md bg-syndicate-off-white">
+                      <input
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveRename(convo.id);
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                        autoFocus
+                        className="w-full text-sm border border-syndicate-blue rounded px-2 py-1 mb-1.5 focus:outline-none"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => saveRename(convo.id)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1 text-xs bg-syndicate-blue text-white rounded"
+                        >
+                          <Check className="w-3 h-3" />
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelRename}
+                          className="px-2 py-1 text-xs text-syndicate-muted hover:bg-white rounded"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-xs text-syndicate-muted mt-0.5">
-                      {formatDate(convo.updatedAt)}
-                    </div>
-                  </Link>
-                  {hoveredId === convo.id && (
+                  ) : (
+                    <Link
+                      href={getChatHref(convo)}
+                      className={cn(
+                        "block px-3 py-2.5 rounded-md text-sm transition-colors",
+                        active
+                          ? "bg-syndicate-blue/10 text-syndicate-blue font-medium"
+                          : "text-syndicate-slate hover:bg-syndicate-off-white"
+                      )}
+                    >
+                      <div className="font-medium truncate pr-16 flex items-center gap-1.5">
+                        <span className="truncate">
+                          {truncate(convo.title, 26)}
+                        </span>
+                        {convo.isComparison && (
+                          <span className="text-[10px] uppercase tracking-wider text-syndicate-blue bg-syndicate-blue/10 px-1 py-0.5 rounded shrink-0">
+                            cmp
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-syndicate-muted mt-0.5">
+                        {formatDate(convo.updatedAt)}
+                      </div>
+                    </Link>
+                  )}
+                  {hoveredId === convo.id && !isRenaming && (
                     <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          startRename(convo);
+                        }}
+                        className="p-1 text-syndicate-muted hover:text-syndicate-blue rounded"
+                        title="Rename"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
