@@ -1,12 +1,14 @@
 import type { ChatMessage, ModelInfo, StreamChunk } from "@/types";
 import type { LLMProvider } from "./types";
+import { getApiKey } from "@/lib/settings";
+import { streamOpenAICompatible } from "./stream";
 
-const GROQ_MODELS: ModelInfo[] = [
+export const GROQ_MODELS: ModelInfo[] = [
   {
     id: "llama-3.3-70b-versatile",
     name: "Llama 3.3 70B",
     provider: "groq",
-    description: "Meta Llama 3.3 70B on Groq LPU",
+    description: "Fast Llama on Groq hardware",
     region: "US",
     contextWindow: 128000,
   },
@@ -14,7 +16,7 @@ const GROQ_MODELS: ModelInfo[] = [
     id: "llama-3.1-8b-instant",
     name: "Llama 3.1 8B Instant",
     provider: "groq",
-    description: "Fast Llama 3.1 8B on Groq",
+    description: "Very fast, good for quick tasks",
     region: "US",
     contextWindow: 128000,
   },
@@ -22,7 +24,7 @@ const GROQ_MODELS: ModelInfo[] = [
     id: "mixtral-8x7b-32768",
     name: "Mixtral 8x7B",
     provider: "groq",
-    description: "Mistral Mixtral 8x7B on Groq",
+    description: "Mistral Mixtral on Groq",
     region: "US",
     contextWindow: 32768,
   },
@@ -34,7 +36,7 @@ export class GroqProvider implements LLMProvider {
   region = "US";
 
   isConfigured(): boolean {
-    return !!process.env.GROQ_API_KEY;
+    return !!getApiKey("groq");
   }
 
   listModels(): ModelInfo[] {
@@ -46,62 +48,40 @@ export class GroqProvider implements LLMProvider {
     model: string,
     options?: { temperature?: number; maxTokens?: number }
   ): AsyncGenerator<StreamChunk> {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+    const apiKey = getApiKey("groq");
+    if (!apiKey) {
+      throw new Error(
+        "Groq is not connected. Go to Setup and add your API key."
+      );
+    }
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          stream: true,
-          temperature: options?.temperature ?? 0.7,
-          max_tokens: options?.maxTokens ?? 4096,
-        }),
-      }
+    yield* streamOpenAICompatible(
+      "https://api.groq.com/openai/v1",
+      apiKey,
+      messages,
+      model,
+      options
     );
+  }
+}
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Groq API error: ${response.status} — ${error}`);
-    }
+export async function testGroqConnection(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  const apiKey = getApiKey("groq");
+  if (!apiKey) return { ok: false, message: "No API key saved" };
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") {
-          yield { content: "", done: true };
-          return;
-        }
-        try {
-          const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content || "";
-          if (content) yield { content, done: false };
-        } catch {
-          // skip malformed chunks
-        }
-      }
-    }
-    yield { content: "", done: true };
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (response.ok) return { ok: true, message: "Connected successfully" };
+    return { ok: false, message: `Connection failed (${response.status})` };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Connection failed",
+    };
   }
 }

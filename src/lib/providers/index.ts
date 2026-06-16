@@ -3,6 +3,9 @@ import type { LLMProvider } from "./types";
 import { FireworksProvider } from "./fireworks";
 import { OpenRouterProvider } from "./openrouter";
 import { GroqProvider } from "./groq";
+import { db } from "@/lib/db";
+import { customModels } from "@/lib/db/schema";
+import { getApiKey } from "@/lib/settings";
 
 const providers: LLMProvider[] = [
   new FireworksProvider(),
@@ -22,29 +25,47 @@ export function getConfiguredProviders(): LLMProvider[] {
   return providers.filter((p) => p.isConfigured());
 }
 
-export function getAllModels(): ModelInfo[] {
-  return providers.flatMap((p) => p.listModels());
+function getCustomModelList(): ModelInfo[] {
+  const customs = db.select().from(customModels).all();
+  return customs
+    .filter((m) => getProvider(m.provider)?.isConfigured())
+    .map((m) => ({
+      id: m.modelId,
+      name: m.name,
+      provider: m.provider,
+      description: m.description || "Custom model",
+      region: "US",
+    }));
 }
 
-export function getModel(providerId: string, modelId: string): ModelInfo | undefined {
-  const provider = getProvider(providerId);
-  return provider?.listModels().find((m) => m.id === modelId);
+export function getAllModels(): ModelInfo[] {
+  const builtIn = providers.flatMap((p) => p.listModels());
+  const custom = getCustomModelList();
+  return [...builtIn, ...custom];
+}
+
+export function getModel(
+  providerId: string,
+  modelId: string
+): ModelInfo | undefined {
+  return getAllModels().find(
+    (m) => m.id === modelId && m.provider === providerId
+  );
 }
 
 export function getDefaultModel(): { provider: string; model: string } {
-  const configured = getConfiguredProviders();
-  if (configured.length === 0) {
-    return {
-      provider: "fireworks",
-      model: "accounts/fireworks/models/kimi-k2-instruct",
-    };
+  const all = getAllModels();
+  if (all.length > 0) {
+    return { provider: all[0].provider, model: all[0].id };
   }
-  const first = configured[0];
-  const models = first.listModels();
   return {
-    provider: first.id,
-    model: models[0]?.id || "",
+    provider: "fireworks",
+    model: "accounts/fireworks/models/kimi-k2-instruct",
   };
+}
+
+export function hasAnyProviderConfigured(): boolean {
+  return getConfiguredProviders().length > 0;
 }
 
 export { type LLMProvider } from "./types";

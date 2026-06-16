@@ -85,5 +85,19 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_documents_conversation ON documents(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_prompts_user ON saved_prompts(user_id);
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS custom_models (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL
+    );
   `);
 }

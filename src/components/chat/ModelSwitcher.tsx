@@ -153,8 +153,14 @@ export function ModelSwitcher({
             </div>
           ))}
           {models.length === 0 && (
-            <div className="px-3 py-4 text-sm text-syndicate-muted text-center">
-              No models configured. Add API keys to .env
+            <div className="px-3 py-4 text-sm text-center">
+              <p className="text-syndicate-muted mb-2">No models connected</p>
+              <a
+                href="/settings"
+                className="text-syndicate-blue text-xs font-medium hover:underline"
+              >
+                Go to Setup →
+              </a>
             </div>
           )}
         </div>

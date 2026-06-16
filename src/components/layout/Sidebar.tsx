@@ -41,7 +41,7 @@ export function Sidebar({
     { href: "/chat", label: "Chat", icon: MessageSquare },
     { href: "/compare", label: "Compare", icon: Columns },
     { href: "/prompts", label: "Prompts", icon: BookOpen },
-    { href: "/settings", label: "Security", icon: Shield },
+    { href: "/settings", label: "Setup", icon: Shield },
   ];
 
   return (
@@ -63,7 +63,10 @@ export function Sidebar({
       <nav className="px-3 pb-2 flex gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
+          const active =
+            item.href === "/chat"
+              ? pathname === "/chat" || pathname.startsWith("/chat/")
+              : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -120,8 +123,10 @@ export function Sidebar({
                   {hoveredId === convo.id && (
                     <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           onShareChat(convo.id);
                         }}
                         className="p-1 text-syndicate-muted hover:text-syndicate-blue rounded"
@@ -130,8 +135,10 @@ export function Sidebar({
                         <Share2 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           onDeleteChat(convo.id);
                         }}
                         className="p-1 text-syndicate-muted hover:text-red-500 rounded"

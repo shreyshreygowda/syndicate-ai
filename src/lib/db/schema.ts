@@ -69,8 +69,23 @@ export const savedPrompts = sqliteTable("saved_prompts", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+export const customModels = sqliteTable("custom_models", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(),
+  modelId: text("model_id").notNull(),
+  description: text("description"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type SavedPrompt = typeof savedPrompts.$inferSelect;
+export type CustomModel = typeof customModels.$inferSelect;

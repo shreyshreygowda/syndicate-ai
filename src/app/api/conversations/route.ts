@@ -20,7 +20,10 @@ export async function GET() {
     .where(eq(conversations.userId, session.user.id))
     .orderBy(desc(conversations.updatedAt));
 
-  return NextResponse.json(convos);
+  // Hide comparison sessions from saved chat list
+  const saved = convos.filter((c) => !c.isComparison);
+
+  return NextResponse.json(saved);
 }
 
 export async function POST(request: Request) {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
+import { ChatIndexPage } from "@/components/chat/ChatIndexPage";
 import type { Conversation } from "@/lib/db/schema";
 
 interface AppShellProps {
@@ -13,8 +14,10 @@ interface AppShellProps {
 
 export function AppShell({ children, userName, authDisabled }: AppShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const isChatHome = pathname === "/chat";
 
   const fetchConversations = useCallback(async () => {
     const res = await fetch("/api/conversations");
@@ -26,9 +29,9 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
 
   useEffect(() => {
     fetchConversations();
-  }, [fetchConversations]);
+  }, [fetchConversations, pathname]);
 
-  async function handleNewChat() {
+  const handleNewChat = useCallback(async () => {
     const res = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,13 +40,23 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
     const convo = await res.json();
     await fetchConversations();
     router.push(`/chat/${convo.id}`);
-  }
+  }, [fetchConversations, router]);
 
   async function handleDeleteChat(id: string) {
-    if (!confirm("Delete this conversation?")) return;
-    await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    if (!confirm("Delete this conversation? This cannot be undone.")) return;
+
+    const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Failed to delete conversation.");
+      return;
+    }
+
     await fetchConversations();
-    router.push("/chat");
+
+    // If we deleted the chat we're viewing, go home — do NOT auto-create a new one
+    if (pathname === `/chat/${id}`) {
+      router.push("/chat");
+    }
   }
 
   async function handleShareChat(id: string) {
@@ -65,15 +78,20 @@ export function AppShell({ children, userName, authDisabled }: AppShellProps) {
         userName={userName}
         authDisabled={authDisabled}
       />
-      <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {isChatHome ? (
+          <ChatIndexPage onNewChat={handleNewChat} />
+        ) : (
+          children
+        )}
+      </main>
 
       {shareUrl && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <h3 className="text-lg font-bold mb-2">Share Link Copied</h3>
             <p className="text-sm text-syndicate-muted mb-4">
-              Anyone with this link can view the conversation. Only Syndicate
-              708 members with access can open shared links.
+              Anyone with this link can view the conversation.
             </p>
             <input
               readOnly

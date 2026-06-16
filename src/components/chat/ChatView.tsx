@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { StatusBar } from "@/components/layout/StatusBar";
+import { Button } from "@/components/ui/Button";
+import { Settings } from "lucide-react";
 import type { ModelInfo } from "@/types";
 
 interface Message {
@@ -38,12 +41,13 @@ export function ChatView({
   initialDocuments,
   initialProvider,
   initialModel,
-  models,
+  models: initialModels,
   compareMode = false,
 }: ChatViewProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
+  const [models, setModels] = useState<ModelInfo[]>(initialModels);
   const [provider, setProvider] = useState(initialProvider);
   const [model, setModel] = useState(initialModel);
   const [compareModels, setCompareModels] = useState<
@@ -53,7 +57,27 @@ export function ChatView({
   const [streamingContent, setStreamingContent] = useState<
     Record<string, string>
   >({});
+  const streamAccumulator = useRef<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/models")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.models?.length) {
+          setModels(d.models);
+          const currentValid = d.models.some(
+            (m: ModelInfo) => m.id === model && m.provider === provider
+          );
+          if (!currentValid) {
+            const first = d.models[0];
+            setProvider(first.provider);
+            setModel(first.id);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [model, provider]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,6 +88,8 @@ export function ChatView({
   }, [messages, streamingContent, scrollToBottom]);
 
   async function handleSend(content: string) {
+    if (models.length === 0) return;
+
     const userMsg: Message = {
       id: `temp-${Date.now()}`,
       role: "user",
@@ -72,6 +98,7 @@ export function ChatView({
     setMessages((prev) => [...prev, userMsg]);
     setStreaming(true);
     setStreamingContent({});
+    streamAccumulator.current = {};
 
     try {
       const body: Record<string, unknown> = {
@@ -91,14 +118,16 @@ export function ChatView({
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error("Chat request failed");
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Chat request failed");
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
       const decoder = new TextDecoder();
       let buffer = "";
-      const newMessages: Message[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -119,31 +148,23 @@ export function ChatView({
 
             if (parsed.type === "chunk") {
               const key = `${parsed.provider}:${parsed.model}`;
-              setStreamingContent((prev) => ({
-                ...prev,
-                [key]: (prev[key] || "") + parsed.content,
-              }));
-            } else if (parsed.type === "done") {
-              newMessages.push({
-                id: parsed.messageId,
-                role: "assistant",
-                content:
-                  streamingContent[`${parsed.provider}:${parsed.model}`] || "",
-                model: parsed.model,
-                provider: parsed.provider,
-              });
+              streamAccumulator.current[key] =
+                (streamAccumulator.current[key] || "") + parsed.content;
+              setStreamingContent({ ...streamAccumulator.current });
             }
-          } catch {
-            // skip
+          } catch (e) {
+            if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+              throw e;
+            }
           }
         }
       }
 
-      // Refetch to get accurate state
       const res = await fetch(`/api/conversations/${conversationId}`);
       const data = await res.json();
       setMessages(data.messages);
       setStreamingContent({});
+      streamAccumulator.current = {};
       router.refresh();
     } catch (error) {
       const msg = error instanceof Error ? error.message : "An error occurred";
@@ -195,6 +216,7 @@ export function ChatView({
   }
 
   const showCompare = compareMode && compareModels.length > 0;
+  const noModels = models.length === 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -210,16 +232,32 @@ export function ChatView({
         />
       </div>
 
+      {noModels && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-between">
+          <p className="text-sm text-amber-800">
+            No AI models connected yet. Set up takes about 2 minutes.
+          </p>
+          <Link href="/settings">
+            <Button size="sm">
+              <Settings className="w-3.5 h-3.5 mr-1.5" />
+              Setup
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-4 py-6 grid-bg">
         {messages.length === 0 && !streaming && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <h2 className="text-2xl font-bold text-black mb-2">
-              Syndicate <span className="text-syndicate-blue">708</span> AI
+              {compareMode ? "Compare Models" : "New Conversation"}
             </h2>
             <p className="text-syndicate-muted text-sm max-w-md">
-              Secure multi-model AI workflow. All traffic routed through
-              US-based servers. Attach documents, compare models, and save your
-              conversations.
+              {noModels
+                ? "Connect an AI service in Setup, then come back and send a message."
+                : compareMode
+                  ? "Select 2–4 models above, then send a message to compare responses side by side."
+                  : "Pick a model above, attach documents if needed, and send a message."}
             </p>
           </div>
         )}
@@ -313,11 +351,17 @@ export function ChatView({
         onUpload={handleUpload}
         onRemoveDocument={handleRemoveDocument}
         documents={documents}
-        disabled={streaming || (compareMode && compareModels.length === 0)}
+        disabled={
+          streaming ||
+          noModels ||
+          (compareMode && compareModels.length === 0)
+        }
         placeholder={
-          compareMode && compareModels.length === 0
-            ? "Select models to compare first…"
-            : undefined
+          noModels
+            ? "Connect a model in Setup first…"
+            : compareMode && compareModels.length === 0
+              ? "Select models to compare first…"
+              : undefined
         }
       />
 
